@@ -960,6 +960,7 @@ struct Settings
     // switch screens. Off unless asked for: brushing the stick put the bottom screen up.
     bool padTouch = false;
     bool showFps = false; // frames shown per second, in a corner
+    bool audit = false;   // every 2 s, log fps, scene, audio queue and settings
 
     void Load(const std::string& path)
     {
@@ -981,6 +982,7 @@ struct Settings
             else if (k == "fps60") fps60 = v == "1";
             else if (k == "pad_touch") padTouch = v == "1";
             else if (k == "show_fps") showFps = v == "1";
+            else if (k == "audit") audit = v == "1";
         }
     }
 
@@ -997,6 +999,7 @@ struct Settings
         f << "fps60=" << (fps60 ? 1 : 0) << "\n";
         f << "pad_touch=" << (padTouch ? 1 : 0) << "\n";
         f << "show_fps=" << (showFps ? 1 : 0) << "\n";
+        f << "audit=" << (audit ? 1 : 0) << "\n";
     }
 };
 
@@ -1174,6 +1177,7 @@ int main(int argc, char** argv)
     if (opt.interp60 >= 0) cfg.fps60 = opt.interp60 == 1;
     if (opt.noWide) cfg.wide = false;
     if (opt.wideOption) cfg.wide = true;
+    if (getenv("SSR_AUDIT")) cfg.audit = true;
     nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60 && !opt.lockstep;
     // The DS-resolution 3D picture is drawn on its own thread, alongside the CPU emulation.
     if (!getenv("SSR_NO_RENDER_THREAD"))
@@ -2328,7 +2332,7 @@ int main(int argc, char** argv)
     Menu menu;
     enum
     {
-        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDELINES, M_SHOWFPS, M_BUTTONS, M_PADTOUCH, M_FAST, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT
+        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDELINES, M_SHOWFPS, M_AUDIT, M_BUTTONS, M_PADTOUCH, M_FAST, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT
     };
     bool fastLock = false;
     // World detail choices: the most lines the widescreen 3D is drawn at (192 is the DS's own).
@@ -2351,6 +2355,7 @@ int main(int argc, char** argv)
             { "WIDESCREEN WORLD", cfg.wide ? "ON" : "OFF" },
             { "WORLD DETAIL", std::to_string(detailLines[detailIndex()]) },
             { "FPS COUNTER", cfg.showFps ? "ON" : "OFF" },
+            { "PERF LOG", cfg.audit ? "ON" : "OFF" },
             { "BUTTONS", cfg.byLabel ? "BY LABEL" : "BY POSITION" },
             { "STICK TOUCH CURSOR", cfg.padTouch ? "ON" : "OFF" },
             { "FAST FORWARD", fastLock ? "ON" : "OFF" },
@@ -2847,6 +2852,9 @@ int main(int argc, char** argv)
                 break;
             case M_SHOWFPS:
                 cfg.showFps = !cfg.showFps;
+                break;
+            case M_AUDIT:
+                cfg.audit = !cfg.audit;
                 break;
             case M_BUTTONS:
                 cfg.byLabel = !cfg.byLabel;
@@ -3764,6 +3772,25 @@ int main(int argc, char** argv)
                     nextTick = now;
                 }
                 perfMark(5);
+            }
+        }
+
+        // This log leaves the pipeline enabled, unlike SSR_PERF's phase timings.
+        // Queue depth helps distinguish audio underruns from presentation stutter.
+        if (cfg.audit && !opt.headless)
+        {
+            static uint32_t auditLast = 0;
+            const uint32_t now = SDL_GetTicks();
+            if (auditLast == 0) auditLast = now;
+            if (now - auditLast >= 2000)
+            {
+                const int q = audio ? SDL_GetQueuedAudioSize(audio) : -1;
+                const double qms = q >= 0 ? q * 1000.0 / 192000.0 : -1.0;
+                fprintf(stderr, "[audit] fps=%d scene=%s engine=%s wide=%d interp60=%d lines=%d audioq=%.0fms async=%d cores=%u\n",
+                    shownFps, scene.name, opt.recomp ? "recomp" : "interp", cfg.wide ? 1 : 0,
+                    cfg.fps60 ? 1 : 0, cfg.wideLines, qms, asyncPipelined ? 1 : 0,
+                    std::thread::hardware_concurrency());
+                auditLast = now;
             }
         }
 

@@ -46,14 +46,11 @@ if ! cd "$GAMEDIR"; then
   exit 1
 fi
 
-# Set CPU governor to performance at max frequency (unthrottled 1.8GHz)
+# The firmware can cap the CPU at 1.8 GHz. Reassert the available 2.0 GHz
+# maximum here and after the platform helper, as in the tested deployment.
 for cpu in /sys/devices/system/cpu/cpu[0-3]; do
   echo performance > "$cpu/cpufreq/scaling_governor" 2>/dev/null
-  if [ -f "$cpu/cpufreq/cpuinfo_max_freq" ]; then
-    cat "$cpu/cpufreq/cpuinfo_max_freq" > "$cpu/cpufreq/scaling_max_freq" 2>/dev/null
-  else
-    echo 1800000 > "$cpu/cpufreq/scaling_max_freq" 2>/dev/null
-  fi
+  echo 2000000 > "$cpu/cpufreq/scaling_max_freq" 2>/dev/null
 done
 
 export TERM=linux
@@ -66,8 +63,10 @@ if [ ! -x "$GAMEDIR/ssrecomp" ]; then
   echo "falta o no es ejecutable $GAMEDIR/ssrecomp" >&2
   exit 1
 fi
-if [ ! -f "$GAMEDIR/soulsilver.nds" ]; then
-  echo "falta la ROM $GAMEDIR/soulsilver.nds" >&2
+ROM_NAME="${SSR_ROM_NAME:-soulsilver.nds}"
+SAVE_NAME="${SSR_SAVE_NAME:-soulsilver.sav}"
+if [ ! -f "$GAMEDIR/$ROM_NAME" ]; then
+  echo "falta la ROM $GAMEDIR/$ROM_NAME" >&2
   exit 1
 fi
 
@@ -76,6 +75,11 @@ export SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt"
 export SDL_VIDEODRIVER=mali
 export SDL_RENDER_DRIVER=opengles2
 export SSR_WIDE_THREADS=2
+export SSR_NO_ASYNC=1
+
+# These background services compete for memory on the 1 GB handheld.
+# They restart with the firmware on reboot.
+killall syncthing musicserver 2>/dev/null
 
 # PortMaster platform helper
 if [ -n "$GPTOKEYB" ]; then
@@ -86,7 +90,13 @@ if type pm_platform_helper >/dev/null 2>&1; then
   pm_platform_helper "ssrecomp" >/dev/null 2>&1
 fi
 
-./ssrecomp --fullscreen --save "$GAMEDIR/soulsilver.sav" --config "$GAMEDIR/ssrecomp.cfg" "$GAMEDIR/soulsilver.nds"
+for cpu in /sys/devices/system/cpu/cpu[0-3]; do
+  echo 2000000 > "$cpu/cpufreq/scaling_max_freq" 2>/dev/null
+done
+
+# The interpreter won the repeated interior benchmark on Cortex-A53. Keep
+# this choice separate from the 60 FPS setting, which is 3D interpolation.
+./ssrecomp --fullscreen --interp --save "$GAMEDIR/$SAVE_NAME" --config "$GAMEDIR/ssrecomp.cfg" "$GAMEDIR/$ROM_NAME"
 
 # Restore governor to schedutil
 for cpu in /sys/devices/system/cpu/cpu[0-3]; do

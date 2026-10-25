@@ -25,10 +25,12 @@ docker build -f "$DIR/Dockerfile.tsp" -t ssrecomp-tsp "$DIR"
 
 echo "[3/3] Compilando (esto tarda; gen/ son ~1,7 millones de instrucciones)..."
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -e SSR_GAMECODE_OPT="${SSR_GAMECODE_OPT:-O1}" \
     -v "$REPO:/src" -w /src ssrecomp-tsp bash -c '
         cmake -S /src -B /src/build-tsp -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE=/src/toolchain-aarch64.cmake \
-            -DCMAKE_PREFIX_PATH=/opt/sdl2 -DSDL2_DIR=/opt/sdl2/lib/cmake/SDL2
+            -DCMAKE_PREFIX_PATH=/opt/sdl2 -DSDL2_DIR=/opt/sdl2/lib/cmake/SDL2 \
+            -DSSR_GAMECODE_OPT="$SSR_GAMECODE_OPT"
         ninja -C /src/build-tsp -j"$(nproc)"
     '
 

@@ -30,6 +30,7 @@ echo "[BIN] $BIN"
 
 # Your own ROM: port/soulsilver/soulsilver.nds (ignored by git) or SSR_ROM.
 ROM_SRC="${SSR_ROM:-$DIR/soulsilver/soulsilver.nds}"
+ROM_ES_SRC="${SSR_ROM_ES:-$DIR/soulsilver/soulsilver_es.nds}"
 
 # Find a mounted CrossMix/JukaMix card. The marker folders are what tell it
 # apart from an arbitrary removable drive.
@@ -69,8 +70,12 @@ deploy_local() {
   chmod +x "$data/ssrecomp"
   echo "[OK] binario -> $data/ssrecomp"
 
-  [ -f "$DIR/soulsilver/ssrecomp.cfg" ] && cp -f "$DIR/soulsilver/ssrecomp.cfg" "$data/ssrecomp.cfg"
+  if [ ! -f "$data/ssrecomp.cfg" ] && [ -f "$DIR/soulsilver/ssrecomp.cfg" ]; then
+    cp -f "$DIR/soulsilver/ssrecomp.cfg" "$data/ssrecomp.cfg"
+  fi
   [ -f "$DIR/soulsilver/gamecontrollerdb.txt" ] && cp -f "$DIR/soulsilver/gamecontrollerdb.txt" "$data/gamecontrollerdb.txt"
+  cp -f "$DIR/diag.sh" "$data/diag.sh"
+  chmod +x "$data/diag.sh"
 
   if [ ! -f "$data/soulsilver.nds" ] || [ "${FORCE_ROM:-0}" = "1" ]; then
     if [ -f "$ROM_SRC" ]; then
@@ -87,11 +92,22 @@ deploy_local() {
   chmod +x "$ports/Pokemon SoulSilver.sh"
   echo "[OK] launcher -> $ports/Pokemon SoulSilver.sh"
 
+  if [ -f "$ROM_ES_SRC" ] && { [ ! -f "$data/soulsilver_es.nds" ] || [ "${FORCE_ROM:-0}" = "1" ]; }; then
+    cp -f "$ROM_ES_SRC" "$data/soulsilver_es.nds"
+    echo "[OK] ROM ES -> $data/soulsilver_es.nds"
+  fi
+  if [ -f "$data/soulsilver_es.nds" ]; then
+    cp -f "$DIR/Pokemon SoulSilver ES.sh" "$ports/Pokemon SoulSilver ES.sh"
+    chmod +x "$ports/Pokemon SoulSilver ES.sh"
+    echo "[OK] launcher ES -> $ports/Pokemon SoulSilver ES.sh"
+  fi
+
   sync
   echo "[OK] Despliegue local completado. Datos: $data"
 }
 
-if SD_MOUNT="$(find_sd)"; then
+SD_MOUNT="${SSR_SD_MOUNT:-}"
+if [ -n "$SD_MOUNT" ] || SD_MOUNT="$(find_sd)"; then
   PORTS_DIR="$(find_ports "$SD_MOUNT")" || {
     echo "[ERROR] He encontrado $SD_MOUNT pero no una carpeta de ports (Roms/PORTS, Ports, roms/ports...)." >&2
     exit 1
@@ -134,13 +150,23 @@ if [ -n "$TARGET_IP" ] && ping -c 1 -W 1 "$TARGET_IP" >/dev/null 2>&1; then
 
   "${SSH[@]}" "mkdir -p '$REMOTE_PORTS' '$REMOTE_DATA'"
   "${SCP[@]}" "$BIN" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/ssrecomp"
-  [ -f "$DIR/soulsilver/ssrecomp.cfg" ] && "${SCP[@]}" "$DIR/soulsilver/ssrecomp.cfg" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/ssrecomp.cfg"
+  if "${SSH[@]}" "test ! -f '$REMOTE_DATA/ssrecomp.cfg'"; then
+    "${SCP[@]}" "$DIR/soulsilver/ssrecomp.cfg" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/ssrecomp.cfg"
+  fi
   [ -f "$DIR/soulsilver/gamecontrollerdb.txt" ] && "${SCP[@]}" "$DIR/soulsilver/gamecontrollerdb.txt" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/gamecontrollerdb.txt"
-  if "${SSH[@]}" "test ! -f '$REMOTE_DATA/soulsilver.nds'"; then
-    [ -f "$ROM_SRC" ] && "${SCP[@]}" "$ROM_SRC" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/soulsilver.nds"
+  "${SCP[@]}" "$DIR/diag.sh" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/diag.sh"
+  if [ -f "$ROM_SRC" ] && { [ "${FORCE_ROM:-0}" = "1" ] || "${SSH[@]}" "test ! -f '$REMOTE_DATA/soulsilver.nds'"; }; then
+    "${SCP[@]}" "$ROM_SRC" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/soulsilver.nds"
   fi
   "${SCP[@]}" "$DIR/Pokemon SoulSilver.sh" "$SSH_USER@$TARGET_IP:$REMOTE_PORTS/Pokemon SoulSilver.sh"
-  "${SSH[@]}" "chmod +x '$REMOTE_DATA/ssrecomp' '$REMOTE_PORTS/Pokemon SoulSilver.sh' && sync"
+  if [ -f "$ROM_ES_SRC" ] && { [ "${FORCE_ROM:-0}" = "1" ] || "${SSH[@]}" "test ! -f '$REMOTE_DATA/soulsilver_es.nds'"; }; then
+    "${SCP[@]}" "$ROM_ES_SRC" "$SSH_USER@$TARGET_IP:$REMOTE_DATA/soulsilver_es.nds"
+  fi
+  if "${SSH[@]}" "test -f '$REMOTE_DATA/soulsilver_es.nds'"; then
+    "${SCP[@]}" "$DIR/Pokemon SoulSilver ES.sh" "$SSH_USER@$TARGET_IP:$REMOTE_PORTS/Pokemon SoulSilver ES.sh"
+    "${SSH[@]}" "chmod +x '$REMOTE_PORTS/Pokemon SoulSilver ES.sh'"
+  fi
+  "${SSH[@]}" "chmod +x '$REMOTE_DATA/ssrecomp' '$REMOTE_DATA/diag.sh' '$REMOTE_PORTS/Pokemon SoulSilver.sh' && sync"
   echo "[OK] Despliegue por WiFi completado."
   exit 0
 fi

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The TrimUI launcher now uses the interpreter and disables the asynchronous
+  pipeline, following device measurements. A separate Spanish launcher uses its
+  own save; supply your own Spanish ROM.
+- Added PERF LOG to the pause menu (`audit=1` or `SSR_AUDIT=1`) to record the
+  displayed frame rate, scene, CPU mode and audio queue every two seconds.
+- Added a handheld diagnostic script and recorded the measured results and
+  remaining performance questions in `port/PERFORMANCE.md`.
+- The TrimUI deploy script preserves existing settings as well as saves.
 - TrimUI Smart Pro / CrossMix build (aarch64, glibc 2.33) and a PortMaster launcher.
 - `SSR_NO_RENDER_THREAD=1` turns off the 3D render thread on 4-core handhelds.
 - The adaptive frameskip no longer skips every other frame at a steady 30 fps.

@@ -28,7 +28,12 @@ __pycache__/
 .DS_Store
 
 # Fork additions: ROM archives and the TSP port staging
-/*.zip
-/*.7z
+*.zip
+*.7z
+*.rar
+*.nds.*
+*.sav.*
+*.state.*
+*.st.*
 *.log
 port/soulsilver/ssrecomp

@@ -4,7 +4,8 @@
 > **TrimUI Smart Pro / CrossMix fork.** This fork adds an aarch64 build for the
 > TrimUI firmware (glibc 2.33), a PortMaster launcher and handheld performance
 > fixes. Start with [`port/README.md`](port/README.md). It contains no game code
-> or data; see [`NOTICE`](NOTICE).
+> or data; see [`NOTICE`](NOTICE). Current device measurements and remaining
+> work are in [`port/PERFORMANCE.md`](port/PERFORMANCE.md).
 
 # ssrecomp
 

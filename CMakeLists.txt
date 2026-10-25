@@ -9,6 +9,11 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND NOT DEFINED CMAKE_OSX_DEPLOYMENT
 endif()
 project(ssrecomp LANGUAGES C CXX)
 set(SSR_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/gen" CACHE PATH "Generated game sources")
+set(SSR_GAMECODE_OPT "O1" CACHE STRING "Optimisation level for the generated game code")
+set_property(CACHE SSR_GAMECODE_OPT PROPERTY STRINGS O1 O2 O3 Os)
+if(NOT SSR_GAMECODE_OPT MATCHES "^(O1|O2|O3|Os)$")
+    message(FATAL_ERROR "SSR_GAMECODE_OPT must be O1, O2, O3 or Os")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,8 +47,9 @@ enable_language(ASM)
 include("${SSR_GENERATED_DIR}/sources.cmake")
 add_library(gamecode OBJECT ${RC_GENERATED_SOURCES})
 target_include_directories(gamecode PRIVATE melonDS/src runtime "${SSR_GENERATED_DIR}")
-# Generated code is huge and uniform; -O1 keeps build times reasonable.
-target_compile_options(gamecode PRIVATE -O1 -g0 -fno-exceptions -fno-rtti "$<$<COMPILE_LANGUAGE:CXX>:-fno-stack-protector>"
+# Generated code is huge and uniform; -O1 keeps build times reasonable. Other
+# levels are available for measured comparisons, not assumed to be faster.
+target_compile_options(gamecode PRIVATE -${SSR_GAMECODE_OPT} -g0 -fno-exceptions -fno-rtti "$<$<COMPILE_LANGUAGE:CXX>:-fno-stack-protector>"
     "$<$<COMPILE_LANGUAGE:ASM>:-Wa,-I${SSR_GENERATED_DIR}>")
 
 set(SSRECOMP_SOURCES
